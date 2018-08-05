@@ -75,4 +75,7 @@ type VolumeOptions struct {
 	PVC *v1.PersistentVolumeClaim
 	// Volume provisioning parameters from StorageClass
 	Parameters map[string]string
+
+	SelectedNode *v1.Node
+	AllowedTopologies []v1.TopologySelectorTerm
 }

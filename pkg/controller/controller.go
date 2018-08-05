@@ -46,6 +46,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/container-storage-interface/spec/lib/go/csi/v0"
+	"encoding/json"
 )
 
 const (
@@ -345,6 +346,68 @@ func (p *csiProvisioner) Provision(options controller.VolumeOptions) (*v1.Persis
 		return nil, err
 	}
 
+	// BEGIN topology stuff
+
+	req.AccessibilityRequirements = &csi.TopologyRequirement{}
+	// TODO (verult) before topology aggregation is implemented, if no topology info is provided
+	// the above must not be instantiated.
+
+	if options.AllowedTopologies == nil {
+		// TODO (verult) If topology info is not provided, aggregate topology across cluster
+	} else {
+		// Compute requisite from AllowedTopologies
+		// 1) Expand // TODO (verult) improve
+		var processedTerms []map[string]string
+		for _, terms := range options.AllowedTopologies { // OR
+			var a []map[string]string
+			for _, expr := range terms.MatchLabelExpressions { // AND
+				var b []map[string]string
+				for _, val := range expr.Values { // OR
+					if len(a) == 0 {
+						b = append(b, map[string]string{expr.Key: val})
+					} else {
+						for _, ex := range a {
+							ex[expr.Key] = val
+							b = append(b, ex)
+						}
+					}
+				}
+				a = b
+			}
+			processedTerms = append(processedTerms, a...)
+		}
+		// 2) Reduce // TODO (verult)
+		// not strictly necessary according to CSI today.
+		// Reduce has two main cases: (1) two segments are set-identical; (2) one segment is a super set of the other
+
+		var requisite []*csi.Topology
+		for _, term := range processedTerms {
+			requisite = append(requisite, &csi.Topology{Segments: term})
+		}
+		req.AccessibilityRequirements.Requisite = requisite
+	}
+
+	// Compute preferred from topology of selectedNode
+	// TODO (verult) select N preferred topologies based on selectedNode and topology value lexicographical order,
+	// where N = len(requisite)
+	// TODO (verult) Right now assumes topology keys are stored in node annotation.
+	if options.SelectedNode != nil {
+		var driverKeys map[string][]string
+		json.Unmarshal(
+			[]byte(options.SelectedNode.Annotations["csi.volume.kubernetes.io/topology-keys"]),
+			driverKeys,
+		)
+		if keys, ok := driverKeys[driverName]; ok {
+			segments := make(map[string]string)
+			for _, key := range keys {
+				segments[key] = options.SelectedNode.Labels[key]
+			}
+			req.AccessibilityRequirements.Preferred = []*csi.Topology{{Segments: segments}}
+		}
+	}
+
+	// END topology stuff
+
 	opts := wait.Backoff{Duration: backoffDuration, Factor: backoffFactor, Steps: backoffSteps}
 	err = wait.ExponentialBackoff(opts, func() (bool, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
@@ -403,6 +466,9 @@ func (p *csiProvisioner) Provision(options controller.VolumeOptions) (*v1.Persis
 	if len(fsType) == 0 {
 		fsType = defaultFSType
 	}
+	// BEGIN topology stuff
+
+	// END topology stuff
 	pv := &v1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: pvName,

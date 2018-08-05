@@ -20,6 +20,8 @@
 #  name = "github.com/x/y"
 #  version = "2.4.0"
 
+# required = ["github.com/json-iterator/go"]
+
 [[constraint]]
   name = "github.com/container-storage-interface/spec"
   version = "~0.3.0"
@@ -35,6 +37,7 @@
 [[constraint]]
   branch = "master"
   name = "github.com/kubernetes-incubator/external-storage"
+  #version = "v4.0.0"
 
 [[constraint]]
   name = "google.golang.org/grpc"
@@ -42,7 +45,7 @@
 
 [[constraint]]
   name = "k8s.io/apimachinery"
-  version = "kubernetes-1.11.1"
+  version = "=kubernetes-1.11.1"
 
 [[constraint]]
   name = "k8s.io/client-go"
@@ -50,4 +53,8 @@
 
 [[constraint]]
   name = "k8s.io/api"
-  version = "kubernetes-1.11.1"
+  version = "=kubernetes-1.11.1"
+
+#[[constraint]]
+#  name = "github.com/json-iterator/go"
+#  version = "1.1.4"
